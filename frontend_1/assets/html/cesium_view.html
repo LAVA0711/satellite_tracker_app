@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Cesium Satellite Visualization</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
+    <style>
+        html, body, #cesiumContainer {
+          width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+<div id="cesiumContainer"></div>
+
+<script>
+    const viewer = new Cesium.Viewer("cesiumContainer", {
+      terrainProvider: Cesium.createWorldTerrain(),
+      shouldAnimate: true,
+      skyBox: false,
+      skyAtmosphere: false,
+      baseLayerPicker: false,
+      timeline: false,
+      animation: false,
+    });
+
+    // XYZ Grid (for reference)
+    const axisLength = 1000000;
+    function createAxis(start, end, color) {
+      viewer.entities.add({
+        polyline: {
+          positions: [start, end],
+          width: 2,
+          material: color,
+        }
+      });
+    }
+    createAxis(Cesium.Cartesian3.ZERO, new Cesium.Cartesian3(axisLength, 0, 0), Cesium.Color.RED);
+    createAxis(Cesium.Cartesian3.ZERO, new Cesium.Cartesian3(0, axisLength, 0), Cesium.Color.GREEN);
+    createAxis(Cesium.Cartesian3.ZERO, new Cesium.Cartesian3(0, 0, axisLength), Cesium.Color.BLUE);
+
+    const modelBasePath = 'assets/models/';
+
+    // Earth Model
+    viewer.scene.primitives.add(Cesium.Model.fromGltf({
+      url: modelBasePath + 'earth.glb',
+      modelMatrix: Cesium.Transforms.eastNorthUpToFixedFrame(Cesium.Cartesian3.ZERO),
+      scale: 2000.0
+    }));
+
+    // Moon Model
+    viewer.scene.primitives.add(Cesium.Model.fromGltf({
+      url: modelBasePath + 'moon.glb',
+      modelMatrix: Cesium.Transforms.eastNorthUpToFixedFrame(new Cesium.Cartesian3(500000.0, 500000.0, 0)),
+      scale: 1000.0
+    }));
+
+    const satellites = [];
+    let highlightedEntity = null;
+
+    // Function to load satellites
+    function loadSatellites(data) {
+      const satData = JSON.parse(data);
+      satData.forEach((sat, index) => {
+        const position = new Cesium.Cartesian3(
+          sat.distanceFromEarth * 50, // Multiply to adjust scale
+          sat.distanceFromMoon * 50,
+          1000 * index // Adjust Z-position to spread satellites out
+        );
+
+        // Add satellite to Cesium scene
+        const entity = viewer.entities.add({
+          name: sat.name,
+          position: position,
+          model: {
+            uri: modelBasePath + 'satellite.glb',
+            scale: 500.0
+          },
+        });
+
+        satellites.push({ entity, data: sat });
+      });
+
+      viewer.zoomTo(viewer.entities);
+    }
+
+    // Function to highlight a selected satellite
+    function highlightSatellite(data) {
+      const sat = JSON.parse(data);
+
+      // Reset previously highlighted satellite
+      if (highlightedEntity) {
+        highlightedEntity.model.color = undefined;
+      }
+
+      // Find the satellite by name
+      const target = satellites.find(s => s.data.name === sat.name);
+      if (target) {
+        target.entity.model.color = Cesium.Color.LIME.withAlpha(0.8); // Highlight with green color
+        highlightedEntity = target.entity;
+      }
+    }
+
+    // Make functions accessible from Flutter (or external sources)
+    window.loadSatellites = loadSatellites;
+    window.highlightSatellite = highlightSatellite;
+
+</script>
+</body>
+</html>
