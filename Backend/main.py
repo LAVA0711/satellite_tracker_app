@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 from pymongo.collection import Collection
 from math import radians, cos, sin, asin, sqrt
-from utils.database import get_db  # ensure this is correctly set up
+from Backend.utils.database import get_db  # ensure this is correctly set up
 
 app = FastAPI()
 

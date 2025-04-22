@@ -1,4 +1,4 @@
-from utils.database import db
+from Backend.utils.database import db
 from pymongo.errors import CollectionInvalid, DuplicateKeyError
 
 def initialize_db():

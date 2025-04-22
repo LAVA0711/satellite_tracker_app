@@ -1,6 +1,6 @@
 import requests
 from pymongo import MongoClient
-from config import Config 
+from Backend.utils.config import Config 
 import time
 
 # Connect to MongoDB
