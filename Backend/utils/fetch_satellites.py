@@ -63,9 +63,9 @@ def fetch_satellites():
                 continue
 
             satname = sat.get("satname", "Unknown")  # Satellite Name
-            satlat = sat.get("satlat", None)  # Latitude
-            satlon = sat.get("satlon", None)  # Longitude
-            satalt = sat.get("satalt", 0)  # Altitude (default 0 if missing)
+            satlat = sat.get("satlatitude", None)  # Latitude
+            satlon = sat.get("satlongitude", None)  # Longitude
+            satalt = sat.get("sataltitude", 0)  # Altitude (default 0 if missing)
 
             # Calculate distances
             distance_from_earth = EARTH_RADIUS + satalt  # Earth Radius + Altitude
