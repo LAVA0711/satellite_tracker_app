@@ -23,12 +23,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r Backend/requirements.txt
 
-      - name: Grant execute permissions to fetch_satellites.py
-        run: chmod +x Backend/utils/fetch_satellites.py  # Ensure the script is executable
+      - name: Grant execute permissions to the entire Backend/utils directory
+        run: chmod -R +x Backend/utils  # Ensure all files in this folder are executable
 
       - name: Run satellite fetch script
         env:
           MONGO_URI: ${{ secrets.MONGO_URI }}
           N2YO_API_KEY: ${{ secrets.N2YO_API_KEY }}
         run: |
-          python3 Backend/utils/fetch_satellites.py  # Run the Python script
+          python3 Backend/utils/fetch_satellites.py  # Run with Python interpreter
