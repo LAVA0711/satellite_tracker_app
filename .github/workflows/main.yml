@@ -34,4 +34,4 @@ jobs:
           MONGO_URI: ${{ secrets.MONGO_URI }}
           N2YO_API_KEY: ${{ secrets.N2YO_API_KEY }}
         run: |
-          python3 Backend/utils/fetch_satellites.py  # Ensure script is run with Python
+         python -m Backend.utils.fetch_satellites
