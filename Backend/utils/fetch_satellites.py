@@ -91,6 +91,7 @@ def fetch_satellites():
     print(f"✅ Satellites data updated successfully! Total satellites stored: {total_satellites}")
 
 if __name__ == "__main__":
-    while True:
-        fetch_satellites()
-        time.sleep(30)
+    print("Fetching satellites...")
+    time.sleep(30)
+    print("Done fetching.")
+
