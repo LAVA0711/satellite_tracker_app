@@ -1,7 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 from pymongo import MongoClient
-from Backend.utils.config import Config
+from utils.config import Config
 
 # Connect to MongoDB
 client = MongoClient(Config.MONGO_URI)
