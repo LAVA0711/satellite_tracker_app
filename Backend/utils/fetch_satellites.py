@@ -14,69 +14,58 @@ categories_collection = db.categories  # Categories collection
 satellites_collection = db.satellites  # Satellites collection
 
 API_KEY = "9WXVRS-SEVLST-3BVGC5-5FKY"  # Replace with your valid API key
-BASE_URL = "https://api.n2yo.com/rest/v1/satellite/positions"
+POSITION_URL = "https://api.n2yo.com/rest/v1/satellite/positions"
 
 LAT = 0    # Equator
 LON = 0    # Prime Meridian
-ALT = 500  # 500 km altitude
-RADIUS = 90  # Search radius
+ALT = 500  # km altitude
+SECONDS = 1  # Only need 1 position
 
 # Constants
 EARTH_RADIUS = 6371  # km
 MOON_DISTANCE = 384400  # km (average)
 
 def fetch_satellites():
-    """Fetch 20 unique satellites for each category stored in MongoDB and store them in the database."""
-    
+    """Fetch 20 unique satellites for each category stored in MongoDB and update their positions."""
+
     logging.info("Starting to fetch satellites...")
     
-    # Retrieve all categories from MongoDB
-    categories = list(categories_collection.find({}, {"_id": 0, "category_id": 1, "name": 1}))
+    # Get all satellites already fetched by category
+    satellites = list(satellites_collection.find({}, {"_id": 0, "satellite_id": 1, "category_id": 1, "category_name": 1, "name": 1}))
 
-    if not categories:
-        logging.error("❌ No categories found in the database. Run 'fetch_types.py' first.")
+    if not satellites:
+        logging.error("❌ No satellites found in the database. Run your category fetcher first.")
         return
-    
-    total_satellites = 0  # Track total satellites stored
-    logging.info(f"Found {len(categories)} categories to process.")
 
-    for category in categories:
-        category_name = category["name"]
-        category_id = category["category_id"]
+    logging.info(f"Found {len(satellites)} satellites to process.")
 
-        url = f"{BASE_URL}/{LAT}/{LON}/{ALT}/{RADIUS}/{category_id}/?apiKey={API_KEY}"
-        logging.info(f"Fetching category: {category_name}, ID: {category_id} - URL: {url}")
-        response = requests.get(url)
+    updated_count = 0
 
-        # Check if response is valid
-        if response.status_code != 200:
-            logging.warning(f"Failed to fetch data for category {category_name}, status code: {response.status_code}")
-            continue  # Skip category if request fails
+    for sat in satellites:
+        satid = sat["satellite_id"]
+        satname = sat["name"]
+        category_id = sat["category_id"]
+        category_name = sat["category_name"]
 
+        url = f"{POSITION_URL}/{satid}/{LAT}/{LON}/{ALT}/{SECONDS}/?apiKey={API_KEY}"
+        logging.info(f"Fetching position for {satname} (ID: {satid}) - URL: {url}")
+        
         try:
-            data = response.json()
-        except ValueError:
-            logging.error(f"Failed to parse JSON for category {category_name}")
-            continue  # Skip if JSON is invalid
-
-        if not data or "above" not in data:
-            logging.warning(f"No satellites data in response for category {category_name}")
-            continue
-
-        satellites = data["above"][:20]  # Get only the first 20 satellites
-        total_satellites += len(satellites)
-
-        logging.info(f"Found {len(satellites)} satellites for category {category_name}")
-
-        for sat in satellites:
-            satid = sat.get("satid")
-            if not satid or not isinstance(satid, int):
+            response = requests.get(url)
+            if response.status_code != 200:
+                logging.warning(f"Failed to fetch satellite {satname}, status code: {response.status_code}")
                 continue
 
-            satname = sat.get("satname", "Unknown")
-            satlat = sat.get("satlatitude", None)
-            satlon = sat.get("satlongitude", None)
-            satalt = sat.get("sataltitude", 0)
+            data = response.json()
+            positions = data.get("positions", [])
+            if not positions:
+                logging.warning(f"No position data for satellite {satname}")
+                continue
+
+            position = positions[0]
+            satlat = position.get("satlatitude", None)
+            satlon = position.get("satlongitude", None)
+            satalt = position.get("sataltitude", 0)
 
             # Calculate distances
             distance_from_earth = EARTH_RADIUS + satalt
@@ -97,12 +86,16 @@ def fetch_satellites():
             satellites_collection.update_one(
                 {"satellite_id": satid}, {"$set": satellite_data}, upsert=True
             )
-            logging.info(f"Satellite {satname} (ID: {satid}) added/updated in MongoDB.")
 
-    logging.info(f"✅ Satellites data updated successfully! Total satellites stored: {total_satellites}")
+            updated_count += 1
+            logging.info(f"✅ Updated {satname} (ID: {satid})")
+
+        except Exception as e:
+            logging.error(f"Error while processing satellite {satname}: {e}")
+            continue
+
+    logging.info(f"🎉 Satellite positions updated successfully. Total updated: {updated_count}")
 
 if __name__ == "__main__":
-    logging.info("Fetching satellites...")
-    time.sleep(30)  # Simulate initial delay if needed
-    logging.info("Done fetching.")
+    logging.info("Fetching satellite positions after delay...")
     fetch_satellites()
