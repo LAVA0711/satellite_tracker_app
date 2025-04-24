@@ -74,42 +74,33 @@ def fetch_satellites():
         # Insert into MongoDB
         for satid, sat in satellite_map.items():
             satname = sat.get("satname", "Unknown")
+            satlat = sat.get("satlat")
+            satlon = sat.get("satlng")
+            satalt = sat.get("satalt", 0)
 
-            # Extract satellite position data from the 'positions' field
-            positions = sat.get("positions", [])
-            if positions:
-                satpos = positions[0]  # Use the first position
-                satlat = satpos.get("satlatitude", None)
-                satlon = satpos.get("satlongitude", None)
-                satalt = satpos.get("sataltitude", 0)
-            else:
-                # Default to None or skip if no positions available
-                satlat = None
-                satlon = None
-                satalt = 0
-                logging.warning(f"❌ No position data available for satellite {satname} (ID: {satid})")
+            if satlat is None or satlon is None:
+                logging.warning(f"❌ Missing position data for satellite {satname} (ID: {satid})")
+                continue
 
-            # Calculate distances from Earth and Moon
-            if satlat is not None and satlon is not None:
-                distance_from_earth = EARTH_RADIUS + satalt
-                distance_from_moon = MOON_DISTANCE - distance_from_earth
+            distance_from_earth = EARTH_RADIUS + satalt
+            distance_from_moon = MOON_DISTANCE - distance_from_earth
 
-                satellite_data = {
-                    "satellite_id": satid,
-                    "name": satname,
-                    "latitude": satlat,
-                    "longitude": satlon,
-                    "altitude": satalt,
-                    "distance_from_earth": distance_from_earth,
-                    "distance_from_moon": distance_from_moon,
-                    "category_name": category_name,
-                    "category_id": category_id
-                }
+            satellite_data = {
+                "satellite_id": satid,
+                "name": satname,
+                "latitude": satlat,
+                "longitude": satlon,
+                "altitude": satalt,
+                "distance_from_earth": distance_from_earth,
+                "distance_from_moon": distance_from_moon,
+                "category_name": category_name,
+                "category_id": category_id
+            }
 
-                satellites_collection.update_one(
-                    {"satellite_id": satid}, {"$set": satellite_data}, upsert=True
-                )
-                logging.info(f"✅ Updated {satname} (ID: {satid})")
+            satellites_collection.update_one(
+                {"satellite_id": satid}, {"$set": satellite_data}, upsert=True
+            )
+            logging.info(f"✅ Updated {satname} (ID: {satid})")
 
         total_satellites += len(satellite_map)
         logging.info(f"🛰️ Stored {len(satellite_map)} satellites for {category_name}")
