@@ -3,7 +3,7 @@ name: Fetch Satellites Every 30 Seconds
 on:
   workflow_dispatch:  # 👈 allows manual trigger
   schedule:
-    - cron: "*/5 * * * *"  # GitHub only allows min every 5 mins
+    - cron: "0 */2 * * *"  # GitHub only allows min every 5 mins
 
 jobs:
   fetch:
