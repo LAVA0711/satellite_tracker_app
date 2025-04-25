@@ -3,10 +3,10 @@ from pymongo import MongoClient
 from Backend.utils.config import Config 
 import logging
 
-# Logging configuration
+# Logging config
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# MongoDB setup
+# MongoDB
 client = MongoClient(Config.MONGO_URI)
 db = client.satellite_tracker
 categories_collection = db.categories
@@ -15,13 +15,12 @@ satellites_collection = db.satellites
 API_KEY = "9WXVRS-SEVLST-3BVGC5-5FKY"
 BASE_URL = "https://api.n2yo.com/rest/v1/satellite/above"
 
-ALT = 500    # Altitude
-RADIUS = 90  # Radius of visibility
+EARTH_RADIUS = 6371
+MOON_DISTANCE = 384400
 
-EARTH_RADIUS = 6371  # km
-MOON_DISTANCE = 384400  # km (average)
+ALT = 500
+RADIUS = 90
 
-# 🌍 Global coordinates to cover all Earth regions
 GLOBAL_COORDINATES = [
     (0, 0), (45, 0), (-45, 0),
     (0, 90), (0, -90), (45, 90), (-45, -90),
@@ -29,51 +28,42 @@ GLOBAL_COORDINATES = [
 ]
 
 def fetch_satellites():
-    logging.info("🌍 Starting global satellite fetch...")
+    logging.info("🌍 Fetching top 25 satellites per category globally...")
 
     categories = list(categories_collection.find({}, {"_id": 0, "category_id": 1, "name": 1}))
     if not categories:
         logging.error("❌ No categories found. Run 'fetch_types.py' first.")
         return
 
-    total_satellites = 0
+    total_inserted = 0
 
     for category in categories:
         category_id = category["category_id"]
         category_name = category["name"]
+        logging.info(f"\n📡 Category: {category_name} (ID: {category_id})")
 
         satellite_map = {}
-        logging.info(f"📡 Category: {category_name} (ID: {category_id})")
 
         for lat, lon in GLOBAL_COORDINATES:
             url = f"{BASE_URL}/{lat}/{lon}/{ALT}/{RADIUS}/{category_id}/?apiKey={API_KEY}"
-            logging.info(f"🌐 Requesting: {url}")
-            response = requests.get(url)
-
-            if response.status_code != 200:
-                logging.warning(f"⚠️ Failed for {lat},{lon} - Status code: {response.status_code}")
-                continue
-
             try:
-                data = response.json()
-                satellites = data.get("above", [])
-            except Exception as e:
-                logging.error(f"❌ JSON parse error: {e}")
-                continue
+                response = requests.get(url)
+                if response.status_code != 200:
+                    continue
 
-            for sat in satellites:
-                satid = sat.get("satid")
-                if satid and satid not in satellite_map:
-                    satellite_map[satid] = sat
-                if len(satellite_map) >= 25:  # ⏹ Limit to 25
-                    break
+                satellites = response.json().get("above", [])
+                for sat in satellites:
+                    satid = sat.get("satid")
+                    if satid and satid not in satellite_map:
+                        satellite_map[satid] = sat
+                    if len(satellite_map) >= 25:
+                        break
+            except Exception as e:
+                logging.warning(f"⚠️ Error fetching/parsing data: {e}")
+                continue
             if len(satellite_map) >= 25:
                 break
 
-        # Track inserted IDs to remove others later
-        inserted_ids = []
-
-        # Insert into MongoDB
         for satid, sat in satellite_map.items():
             satname = sat.get("satname", "Unknown")
             satlat = sat.get("satlat")
@@ -81,11 +71,7 @@ def fetch_satellites():
             satalt = sat.get("satalt", 0)
 
             if satlat is None or satlon is None:
-                logging.warning(f"❌ Missing position data for satellite {satname} (ID: {satid})")
                 continue
-
-            distance_from_earth = EARTH_RADIUS + satalt
-            distance_from_moon = MOON_DISTANCE - distance_from_earth
 
             satellite_data = {
                 "satellite_id": satid,
@@ -93,29 +79,22 @@ def fetch_satellites():
                 "latitude": satlat,
                 "longitude": satlon,
                 "altitude": satalt,
-                "distance_from_earth": distance_from_earth,
-                "distance_from_moon": distance_from_moon,
+                "distance_from_earth": EARTH_RADIUS + satalt,
+                "distance_from_moon": MOON_DISTANCE - (EARTH_RADIUS + satalt),
                 "category_name": category_name,
                 "category_id": category_id
             }
 
             satellites_collection.update_one(
-                {"satellite_id": satid}, {"$set": satellite_data}, upsert=True
+                {"satellite_id": satid},
+                {"$set": satellite_data},
+                upsert=True
             )
-            inserted_ids.append(satid)
-            logging.info(f"✅ Updated {satname} (ID: {satid})")
+            logging.info(f"✅ Inserted: {satname} (ID: {satid})")
 
-        # ❌ Delete satellites not in the top 25 for this category
-        delete_result = satellites_collection.delete_many({
-            "category_id": category_id,
-            "satellite_id": {"$nin": inserted_ids}
-        })
-        logging.info(f"🗑️ Deleted {delete_result.deleted_count} extra satellites from {category_name}")
+        total_inserted += len(satellite_map)
 
-        total_satellites += len(inserted_ids)
-        logging.info(f"🛰️ Stored {len(inserted_ids)} satellites for {category_name}")
-
-    logging.info(f"🚀 Finished updating. Total satellites inserted: {total_satellites}")
+    logging.info(f"\n🚀 Done. Total satellites inserted: {total_inserted}")
 
 if __name__ == "__main__":
     fetch_satellites()
