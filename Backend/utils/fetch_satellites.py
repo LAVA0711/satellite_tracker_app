@@ -1,7 +1,6 @@
 import requests
 from pymongo import MongoClient
 from Backend.utils.config import Config 
-import time
 import logging
 
 # Logging configuration
@@ -66,10 +65,13 @@ def fetch_satellites():
                 satid = sat.get("satid")
                 if satid and satid not in satellite_map:
                     satellite_map[satid] = sat
-                if len(satellite_map) >= 50:
+                if len(satellite_map) >= 25:  # ⏹ Limit to 25
                     break
-            if len(satellite_map) >= 50:
+            if len(satellite_map) >= 25:
                 break
+
+        # Track inserted IDs to remove others later
+        inserted_ids = []
 
         # Insert into MongoDB
         for satid, sat in satellite_map.items():
@@ -100,10 +102,18 @@ def fetch_satellites():
             satellites_collection.update_one(
                 {"satellite_id": satid}, {"$set": satellite_data}, upsert=True
             )
+            inserted_ids.append(satid)
             logging.info(f"✅ Updated {satname} (ID: {satid})")
 
-        total_satellites += len(satellite_map)
-        logging.info(f"🛰️ Stored {len(satellite_map)} satellites for {category_name}")
+        # ❌ Delete satellites not in the top 25 for this category
+        delete_result = satellites_collection.delete_many({
+            "category_id": category_id,
+            "satellite_id": {"$nin": inserted_ids}
+        })
+        logging.info(f"🗑️ Deleted {delete_result.deleted_count} extra satellites from {category_name}")
+
+        total_satellites += len(inserted_ids)
+        logging.info(f"🛰️ Stored {len(inserted_ids)} satellites for {category_name}")
 
     logging.info(f"🚀 Finished updating. Total satellites inserted: {total_satellites}")
 
